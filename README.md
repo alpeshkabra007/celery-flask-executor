@@ -40,7 +40,21 @@ The API is then available at `http://localhost:5000`.
 | --- | --- | --- |
 | `GET` | `/` | Health check — returns `Hello World`. |
 | `GET` | `/add/<a>/<b>` | Enqueue an addition task. Returns `{ "task_id": "..." }` (HTTP 202). |
-| `GET` | `/result/<task_id>` | Poll a task's state and result. |
+| `POST` | `/tasks/fibonacci/<n>` | Enqueue a CPU-bound Fibonacci computation. Returns `{ "task_id": "..." }` (HTTP 202). |
+| `POST` | `/tasks/batch` | Enqueue a long-running batch job with progress reporting. Accepts JSON `{ "n": <int> }` (defaults to `10`). Returns `{ "task_id": "..." }` (HTTP 202). |
+| `POST` | `/tasks/unreliable` | Enqueue a flaky task that retries itself. Accepts JSON `{ "value": <any> }`. Returns `{ "task_id": "..." }` (HTTP 202). |
+| `GET` | `/result/<task_id>` | Poll a task's state and result (including `PROGRESS` updates). |
+
+### Tasks
+
+All tasks live in [`flask_app/tasks.py`](flask_app/tasks.py):
+
+| Task | Description |
+| --- | --- |
+| `add_together(a, b)` | Returns `a + b`. The canonical trivial async task. |
+| `compute_fibonacci(n)` | Iteratively computes the n-th Fibonacci number (CPU-bound stand-in). |
+| `process_batch(n)` | Long-running job that iterates `n` times and reports incremental `PROGRESS` state via `self.update_state(...)`. |
+| `unreliable_task(value)` | Fails intermittently and retries itself (`bind=True`, `max_retries=3`, `self.retry`). |
 
 ### Example
 
@@ -63,14 +77,30 @@ Both services read the broker/backend URLs from the environment (defaults shown)
 | `CELERY_BROKER_URL` | `redis://redis:6379/0` |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/0` |
 
+## Running tests
+
+The test suite runs Celery in **eager mode** (`task_always_eager=True`), so
+tasks execute synchronously in-process and **no Redis broker/backend is
+required**.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
+```
+
 ## Project layout
 
 ```
 .
 ├── flask_app/
-│   ├── __init__.py     # app factory, Celery setup, routes, the add task
+│   ├── __init__.py     # app factory, Celery setup, routes
+│   ├── tasks.py        # Celery task definitions
 │   └── app.py          # entrypoint
 ├── celery_worker.py    # Celery worker entrypoint
+├── tests/
+│   └── test_app.py     # pytest suite (Celery eager mode, no Redis)
 ├── docker-compose.yml
 ├── Dockerfile
 └── requirements.txt

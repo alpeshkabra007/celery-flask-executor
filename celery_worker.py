@@ -1,5 +1,7 @@
 from flask_app import celery
-from flask_app import add_together
+
+# Import the tasks module so every task registers with the worker.
+import flask_app.tasks  # noqa: F401
 
 
 if __name__ == '__main__':
